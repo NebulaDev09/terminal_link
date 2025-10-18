@@ -1,14 +1,18 @@
 import asyncio
 import json
 import time
-from prompt_toolkit import PromptSession
+from prompt_toolkit import PromptSession, print_formatted_text
 
 
 async def main():
-    session = PromptSession()
     username = input("Please enter your username: ")
     reader, writer = await asyncio.open_connection('192.168.29.153', 6767)
     await sendSystemMessage(username, 'connected', writer)
+    await asyncio.gather(send(writer, username), receive(reader))
+    
+
+async def send(writer, username):
+    session = PromptSession()
     while True:
         try:
             msg =  await session.prompt_async(f"{username}: ")
@@ -17,18 +21,22 @@ async def main():
         except (ConnectionAbortedError, ConnectionError, ConnectionRefusedError, ConnectionResetError) as e:
             print({e})
 
-        except KeyboardInterrupt:
-            await sendSystemMessage(username, 'disconnected', writer)
-            writer.close()
-            await writer.wait_closed()
+async def receive(reader):
+    while True:
+        data = await reader.readline()
+        if not data:
             break
-    
+        msg = json.loads(data.decode())
+        message = msg['message']
+        user = msg['username']
+        print_formatted_text(f"{user}: {message}")
+
 
 async def sendMessage(username, message, writer):
     m = {
         'username' : username,
         'type' : 'message',
-        'command' : message,
+        'message' : message,
         'timestamp' : time.ctime()
     }
     data = (json.dumps(m) + '\n').encode()
