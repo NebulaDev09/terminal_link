@@ -7,6 +7,9 @@ from prompt_toolkit import PromptSession, print_formatted_text # promp session f
 from prompt_toolkit.formatted_text import FormattedText # add colors
 from InquirerPy import inquirer # selecting room thing in the terminal, similar to how you can select when you do npm create project
 from concurrent.futures import ThreadPoolExecutor # to convert the selecting thing into a async input, since that wasnt included in the library
+import os
+import base64
+from prompt_toolkit.completion import PathCompleter #autocomplet file paths
 
 executor = ThreadPoolExecutor()
 
@@ -20,7 +23,7 @@ async def async_select(message, choices):
 
 
 color = '#ffffff'
-in_room = False
+path_completer = PathCompleter(expanduser=True)
 
 
 async def input_async(prompt_text: str):
@@ -91,6 +94,9 @@ async def send(writer, username):
                 elif command == 'exit':
                     await sendSystemMessage(username, 'disconnected', writer)
                     await chooseRoom()
+                elif command == "sendfile":
+                    filepath = await session.prompt_async("Enter file path: ", completer=path_completer)
+                    await sendFile(username, filepath, writer)
             else:
                 await sendMessage(username, msg, writer)
 
@@ -128,7 +134,51 @@ async def receive(reader):
             event = msg["event"]
             user = msg["username"]
             print_formatted_text(f"[system] {user} {event}")
+        elif mtype == "file":
+            os.makedirs("terminallink_downloads", exist_ok=True)
+            file_chunks = {}
+            filename = msg["filename"]
+            chunk_data = base64.b64decode(msg["data"])
+            total = msg["total_chunks"]
+            idx = msg["chunk_index"]
+            if filename not in file_chunks:
+                file_chunks[filename] = [b""] * total
+            file_chunks[filename][idx] = chunk_data
+            if all(file_chunks[filename]):
+                filepath = os.path.join("terminallink_downloads", filename)
+                with open(filepath, "wb") as f:
+                    for part in file_chunks[filename]:
+                        f.write(part)
+                print_formatted_text(f"File received: {filepath}")
+                del file_chunks[filename]
 
+
+async def sendFile(username, filepath, writer):
+    try:
+        chunk_size = 1024 * 64
+        filename = os.path.basename(filepath)
+        with open(filepath, "rb") as f:
+            data = f.read()
+            total_chunks = (len(data) + chunk_size - 1) // chunk_size
+            for i in range(total_chunks):
+                chunk = data[i * chunk_size:(i + 1) * chunk_size]
+                b64_chunk = base64.b64encode(chunk).decode()
+                msg = {
+                        "type": "file",
+                        "username": username,
+                        "filename": filename,
+                        "chunk_index": i,
+                        "total_chunks": total_chunks,
+                        "data": b64_chunk,
+                        "timestamp": time.ctime(),
+                    }
+
+        writer.write((json.dumps(msg) + "\n").encode())
+        await writer.drain()
+
+
+    except Exception as e:
+        print_formatted_text(f"[system] err while sending file: {e}")
 
 async def sendMessage(username, message, writer):
     m = {

@@ -22,7 +22,7 @@ async def handle_clients(reader, writer):
                 continue
 
             mtype = message['type']
-            if mtype == 'message':
+            if mtype == 'message' or mtype == 'file':
                 await sendMessages(message, writer)
             elif mtype == 'server' and message.get('event') == 'connected':
                 #when the client connects, send it the room list
