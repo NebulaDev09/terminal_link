@@ -4,7 +4,7 @@ import asyncio
 import json
 import socket
 
-host = socket.gethostbyname(socket.gethostname()))
+host = socket.gethostbyname(socket.gethostname())
 
 
 clients = set() #list of all clients conected to server
