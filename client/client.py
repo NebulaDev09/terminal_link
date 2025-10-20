@@ -10,6 +10,10 @@ from concurrent.futures import ThreadPoolExecutor # to convert the selecting thi
 import os
 import base64
 from prompt_toolkit.completion import PathCompleter #autocomplet file paths
+import socket
+
+host = socket.gethostbyname(socket.gethostname())
+
 
 executor = ThreadPoolExecutor()
 
@@ -35,7 +39,7 @@ async def main():
     global session 
     session = PromptSession()
     username = await session.prompt_async("Please enter your username: ")
-    reader, writer = await asyncio.open_connection('192.168.29.153', 6767)
+    reader, writer = await asyncio.open_connection(host, 6767)
     await sendServerMessages(username, 'connected', writer)
     data = await reader.readline() #recieve room list
     rooms = json.loads(data.decode())
